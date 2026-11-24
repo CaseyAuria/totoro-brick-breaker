@@ -1,0 +1,297 @@
+import arcade
+import random
+
+BRICK_IMAGES = [
+    "brick_blue.png",
+    "brick_brown.png",
+    "brick_green.png",
+    "brick_pink.png",
+    "brick_yellow.png"
+]
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SCREEN_TITLE = "Totoro Brick Breaker"
+
+PADDLE_SPEED = 6
+BALL_SPEED = 4
+
+BRICK_WIDTH = 60
+BRICK_HEIGHT = 20
+BRICK_MARGIN = 5
+BRICK_COLUMNS = SCREEN_WIDTH // (BRICK_WIDTH + BRICK_MARGIN)
+BRICK_ROWS = 5
+BRICK_TOP_OFFSET = 100
+
+class Brick(arcade.Sprite):
+    def __init__(self, image, x, y, hp=1):
+        super().__init__(image, 1)
+        self.center_x = x
+        self.center_y = y
+        self.hp = hp
+
+    def hit(self):
+        self.hp -= 1
+        return self.hp <= 0
+
+class PowerUp(arcade.Sprite):
+    def __init__(self, image, x, y, powerup_type):
+        super().__init__(image, 1)
+        self.center_x = x
+        self.center_y = y
+        self.change_y = -2
+        self.type = powerup_type
+
+class TotoroBrickBreakerGame(arcade.Window):
+    def __init__(self):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+        self.all_sprites = arcade.SpriteList()
+        self.brick_list = arcade.SpriteList()
+        self.powerup_list = arcade.SpriteList()
+        self.ball_list = arcade.SpriteList()
+        self.background_list = arcade.SpriteList()
+        self.acorn_projectiles = arcade.SpriteList()
+        self.paddle = None
+        self.score = 0
+        self.lives = 3
+        self.move_left = False
+        self.move_right = False
+        self.can_fire_acorn = False
+        self.game_over = False
+        self.win = False
+        self.damage_multiplier = 1
+
+    def setup(self):
+        self.all_sprites = arcade.SpriteList()
+        self.brick_list = arcade.SpriteList()
+        self.powerup_list = arcade.SpriteList()
+        self.ball_list = arcade.SpriteList()
+        self.background_list = arcade.SpriteList()
+        self.acorn_projectiles = arcade.SpriteList()
+        self.damage_multiplier = 1
+
+        bg = arcade.Sprite("totoro_background.png", 1)
+        bg.center_x = SCREEN_WIDTH // 2
+        bg.center_y = SCREEN_HEIGHT // 2
+        bg.width = SCREEN_WIDTH
+        bg.height = SCREEN_HEIGHT
+        self.background_list.append(bg)
+
+        self.paddle = arcade.Sprite("cat_bus_paddle.png", 1)
+        self.paddle.center_x = SCREEN_WIDTH // 2
+        self.paddle.center_y = 20
+        self.all_sprites.append(self.paddle)
+
+        ball = arcade.Sprite("soot_sprite_ball.png", 1)
+        ball.center_x = self.paddle.center_x
+        ball.center_y = self.paddle.center_y + 10
+        ball.change_x = BALL_SPEED
+        ball.change_y = BALL_SPEED
+        self.ball_list.append(ball)
+        self.all_sprites.append(ball)
+
+        for row in range(BRICK_ROWS):
+            brick_image = BRICK_IMAGES[row % len(BRICK_IMAGES)]
+            for column in range(BRICK_COLUMNS):
+                x = BRICK_MARGIN + BRICK_WIDTH / 2 + column * (BRICK_WIDTH + BRICK_MARGIN)
+                y = SCREEN_HEIGHT - BRICK_TOP_OFFSET - row * (BRICK_HEIGHT + BRICK_MARGIN)
+                brick = Brick(brick_image, x, y, hp=1)
+                self.brick_list.append(brick)
+                self.all_sprites.append(brick)
+
+        self.score = 0
+        self.lives = 3
+        self.can_fire_acorn = False
+        self.game_over = False
+        self.win = False
+
+    def on_draw(self):
+        self.clear()
+        self.background_list.draw()
+        self.all_sprites.draw()
+        self.powerup_list.draw()
+        self.acorn_projectiles.draw()
+        arcade.draw_text(f"Score: {self.score}", 10, SCREEN_HEIGHT - 30, arcade.color.WHITE, 20)
+        arcade.draw_text(f"Lives: {self.lives}", SCREEN_WIDTH - 120, SCREEN_HEIGHT - 30, arcade.color.WHITE, 20)
+        if self.game_over:
+            if self.win:
+                arcade.draw_text("YOU WIN!", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, arcade.color.WHITE, 50, anchor_x="center", anchor_y="center")
+            else:
+                arcade.draw_text("GAME OVER", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, arcade.color.WHITE, 50, anchor_x="center", anchor_y="center")
+
+    def on_key_press(self, key, modifiers):
+        if key == arcade.key.LEFT:
+            self.move_left = True
+        elif key == arcade.key.RIGHT:
+            self.move_right = True
+        elif key == arcade.key.SPACE and self.game_over:
+            self.setup()
+        elif key == arcade.key.UP and self.can_fire_acorn and not self.game_over:
+            acorn = arcade.Sprite("acorn_powerup.png", 1)
+            acorn.center_x = self.paddle.center_x
+            acorn.center_y = self.paddle.center_y + 20
+            acorn.change_y = 8
+            self.acorn_projectiles.append(acorn)
+            self.all_sprites.append(acorn)
+            self.can_fire_acorn = False
+
+    def on_key_release(self, key, modifiers):
+        if key == arcade.key.LEFT:
+            self.move_left = False
+        elif key == arcade.key.RIGHT:
+            self.move_right = False
+
+    def on_update(self, delta_time):
+        if self.game_over:
+            return
+
+        if self.move_left:
+            self.paddle.center_x -= PADDLE_SPEED
+        if self.move_right:
+            self.paddle.center_x += PADDLE_SPEED
+        if self.paddle.left < 0:
+            self.paddle.left = 0
+        if self.paddle.right > SCREEN_WIDTH:
+            self.paddle.right = SCREEN_WIDTH
+
+        for ball in list(self.ball_list):
+            ball.center_x += ball.change_x
+            ball.center_y += ball.change_y
+
+            if ball.left < 0:
+                ball.left = 0
+                ball.change_x *= -1
+            if ball.right > SCREEN_WIDTH:
+                ball.right = SCREEN_WIDTH
+                ball.change_x *= -1
+            if ball.top > SCREEN_HEIGHT:
+                ball.top = SCREEN_HEIGHT
+                ball.change_y *= -1
+
+            if ball.bottom < 0:
+                if ball is self.ball_list[0] and len(self.ball_list) == 1:
+                    self.lives -= 1
+                    ball.center_x = self.paddle.center_x
+                    ball.center_y = self.paddle.center_y + 10
+                    ball.change_x = BALL_SPEED
+                    ball.change_y = BALL_SPEED
+                else:
+                    ball.remove_from_sprite_lists()
+                    continue
+
+            if arcade.check_for_collision(ball, self.paddle):
+                offset = (ball.center_x - self.paddle.center_x) / (self.paddle.width / 2)
+                ball.change_x = BALL_SPEED * offset
+                ball.change_y = abs(ball.change_y)
+
+            hit_list = arcade.check_for_collision_with_list(ball, self.brick_list)
+            for brick in hit_list:
+                brick.remove_from_sprite_lists()
+                self.score += 10 * self.damage_multiplier
+                ball.change_y *= -1
+                if random.random() < 0.25:
+                    choice = random.choice(["acorn", "leaf", "soot_sprite"])
+                    if choice == "acorn":
+                        image = "acorn_powerup.png"
+                    elif choice == "leaf":
+                        image = "leaf_powerup.png"
+                    else:
+                        image = "soot_sprite_powerup.png"
+                    powerup = PowerUp(image, brick.center_x, brick.center_y, choice)
+                    self.powerup_list.append(powerup)
+                    self.all_sprites.append(powerup)
+
+        for acorn in list(self.acorn_projectiles):
+            acorn.center_y += acorn.change_y
+
+            if acorn.top > SCREEN_HEIGHT:
+                for brick in list(self.brick_list):
+                    distance = arcade.get_distance_between_sprites(acorn, brick)
+                    if distance < 60:
+                        brick.remove_from_sprite_lists()
+                        self.score += 10 * self.damage_multiplier
+                        if random.random() < 0.25:
+                            choice = random.choice(["acorn", "leaf", "soot_sprite"])
+                            if choice == "acorn":
+                                image = "acorn_powerup.png"
+                            elif choice == "leaf":
+                                image = "leaf_powerup.png"
+                            else:
+                                image = "soot_sprite_powerup.png"
+                            powerup = PowerUp(image, brick.center_x, brick.center_y, choice)
+                            self.powerup_list.append(powerup)
+                            self.all_sprites.append(powerup)
+                acorn.remove_from_sprite_lists()
+                continue
+
+            hit_list = arcade.check_for_collision_with_list(acorn, self.brick_list)
+            if hit_list:
+                for brick in list(self.brick_list):
+                    distance = arcade.get_distance_between_sprites(acorn, brick)
+                    if distance < 60:
+                        brick.remove_from_sprite_lists()
+                        self.score += 10 * self.damage_multiplier
+                        if random.random() < 0.25:
+                            choice = random.choice(["acorn", "leaf", "soot_sprite"])
+                            if choice == "acorn":
+                                image = "acorn_powerup.png"
+                            elif choice == "leaf":
+                                image = "leaf_powerup.png"
+                            else:
+                                image = "soot_sprite_powerup.png"
+                            powerup = PowerUp(image, brick.center_x, brick.center_y, choice)
+                            self.powerup_list.append(powerup)
+                            self.all_sprites.append(powerup)
+                acorn.remove_from_sprite_lists()
+
+        for powerup in list(self.powerup_list):
+            powerup.center_y += powerup.change_y
+
+            if powerup.bottom < 0:
+                powerup.remove_from_sprite_lists()
+                continue
+
+        caught_list = arcade.check_for_collision_with_list(self.paddle, self.powerup_list)
+        for powerup in caught_list:
+            if powerup.type == "leaf":
+                self.damage_multiplier = 20
+            elif powerup.type == "acorn":
+                self.can_fire_acorn = True
+            elif powerup.type == "soot_sprite":
+                for i in range(2):
+                    new_ball = arcade.Sprite("soot_sprite_ball.png", 1)
+                    new_ball.center_x = self.paddle.center_x
+                    new_ball.center_y = self.paddle.center_y + 10
+                    new_ball.change_x = BALL_SPEED * random.choice([-1, 1])
+                    new_ball.change_y = BALL_SPEED
+                    if new_ball.change_x == 0:
+                        new_ball.change_x = BALL_SPEED
+                    self.ball_list.append(new_ball)
+                    self.all_sprites.append(new_ball)
+            powerup.remove_from_sprite_lists()
+
+        if self.lives <= 0:
+            self.game_over = True
+        if len(self.brick_list) == 0:
+            self.game_over = True
+            self.win = True
+
+def main():
+    game = TotoroBrickBreakerGame()
+    game.setup()
+    arcade.run()
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
+
+
+
