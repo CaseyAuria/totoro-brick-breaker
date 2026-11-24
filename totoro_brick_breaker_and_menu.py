@@ -265,6 +265,61 @@ class ArtBookView(arcade.View):
         if key == arcade.key.ESCAPE:
             self.window.show_view(MainView()) 
 
+class GameOverView(arcade.View):
+    def __init__(self, win=False, level=1):
+        super().__init__()
+        self.win = win
+        self.level = level
+
+        self.try_again_texture = arcade.load_texture(
+            "try_again_button.png"
+        )
+
+        self.main_menu_texture = arcade.load_texture(
+            "main_menu_button.png"
+        )
+
+    def on_draw(self):
+        self.clear()
+    
+        message = "YOU WIN!" if self.win else "GAME OVER"
+
+        arcade.draw_text(
+            message,
+            SCREEN_WIDTH // 2,
+            420,
+            arcade.color.WHITE,
+            40,
+            anchor_x="center"
+        )
+
+        arcade.draw_texture_rectangle(
+            SCREEN_WIDTH // 2,
+            300,
+            270,
+            70,
+            self.try_again_texture
+        )
+
+        arcade.draw_texture_rectangle(
+            SCREEN_WIDTH // 2,
+            220,
+            270,
+            70,
+            self.main_menu_texture
+        )
+
+    def on_mouse_press(self, x, y, button, modifiers):
+
+        if 265 <= x <= 535 and 265 <= y <= 335:
+            print("TRY AGAIN CLICKED")
+            game_view = TotoroBrickBreakerGame()
+            game_view.setup()
+            self.window.show_view(game_view)
+
+        elif 265 <= x <= 535 and 185 <= y <= 255:
+            self.window.show_view(MainView())
+
 class TotoroBrickBreakerGame(arcade.View):
     def __init__(self):
         super().__init__()
@@ -277,11 +332,11 @@ class TotoroBrickBreakerGame(arcade.View):
         self.paddle = None
         self.score = 0
         self.lives = 3
+        self.game_over = False
+        self.win = False
         self.move_left = False
         self.move_right = False
         self.can_fire_acorn = False
-        self.game_over = False
-        self.win = False
         self.damage_multiplier = 1
         self.level = 1
 
@@ -378,20 +433,13 @@ class TotoroBrickBreakerGame(arcade.View):
         self.acorn_projectiles.draw()
         arcade.draw_text(f"Score: {self.score}", 10, SCREEN_HEIGHT - 30, arcade.color.WHITE, 20)
         arcade.draw_text(f"Lives: {self.lives}", SCREEN_WIDTH - 120, SCREEN_HEIGHT - 30, arcade.color.WHITE, 20)
-        if self.game_over:
-            if self.win:
-                arcade.draw_text("YOU WIN!", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, arcade.color.WHITE, 50, anchor_x="center", anchor_y="center")
-            else:
-                arcade.draw_text("GAME OVER", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, arcade.color.WHITE, 50, anchor_x="center", anchor_y="center")
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.LEFT:
             self.move_left = True
         elif key == arcade.key.RIGHT:
             self.move_right = True
-        elif key == arcade.key.SPACE and self.game_over:
-            self.setup()
-        elif key == arcade.key.UP and self.can_fire_acorn and not self.game_over:
+        elif key == arcade.key.UP and self.can_fire_acorn:
             acorn = arcade.Sprite("acorn_powerup.png", 1)
             acorn.center_x = self.paddle.center_x
             acorn.center_y = self.paddle.center_y + 20
@@ -407,8 +455,7 @@ class TotoroBrickBreakerGame(arcade.View):
             self.move_right = False
 
     def on_update(self, delta_time):
-        if self.game_over:
-            return
+
 
         if self.move_left:
             self.paddle.center_x -= PADDLE_SPEED
@@ -541,13 +588,23 @@ class TotoroBrickBreakerGame(arcade.View):
             powerup.remove_from_sprite_lists()
 
         if self.lives <= 0:
-            self.game_over = True
+            game_over = GameOverView(
+                win=False,
+                level=self.level
+            )
+            self.window.show_view(game_over)
+            return 
 
         if not any(brick.hp < UNBREAKABLE_HP for brick in self.brick_list):
             self.level += 1
             if self.level > 3:
-                self.game_over = True
-                self.win = True
+                game_over = GameOverView(
+                    win=True,
+                    level=1 
+                )
+                self.window.show_view(game_over)
+                return
+
             else:
                 self.damage_multiplier = 1
                 self.setup_level(self.level)
